@@ -54,6 +54,16 @@ class EjudgeError(BadRequest):
     message = 'Ejudge error'
 
 
+# Group
+class GroupNotFound(NotFound):
+    message = 'Group not found'
+
+
+# Problem
+class ProblemNotFound(NotFound):
+    message = 'No problem with this id'
+
+
 # Statement
 class StatementNotFound(NotFound):
     message = 'No statement with this id'

@@ -1,21 +1,22 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { palette } from 'styled-theme';
-import styled from 'styled-components';
-import { connect } from 'react-redux';
-import * as _ from 'lodash';
-import { Tag } from 'antd';
 import PropTypes from 'prop-types';
+import React from 'react';
+import styled from 'styled-components';
+import { Link, withRouter } from 'react-router-dom';
+import { Tag } from 'antd';
+import { connect } from 'react-redux';
+import { palette } from 'styled-theme';
+import * as _ from 'lodash';
 
-import { borderRadius } from '../../isomorphic/config/style-util';
 import Button from '../../components/utility/Button';
 import CodeMirror from '../../components/utility/CodeMirror';
 import Dropzone, { DropzoneWrapper } from '../../components/utility/Dropzone';
-import { LANGUAGES } from '../../constants';
 import Select, { SelectOption } from '../../components/utility/Select';
+import isUserLoggedIn from "../../utils/isUserLoggedIn";
+import { LANGUAGES } from '../../constants';
+import { borderRadius } from '../../isomorphic/config/style-util';
+import { getExtensionByFilename }  from '../../utils/functions';
 import * as problemAcitons from '../../actions/problemActions';
 
-import { getExtensionByFilename }  from '../../utils/functions';
 
 const SubmitFormWrapper = styled.div`
   position: relative;
@@ -115,6 +116,7 @@ export class SubmitForm extends React.Component {
       languageId: _.maxBy(_.keys(this.languageInfo), id => this.languageInfo[id]) || 1,
       showCodeMirror: false,
       submitProcessed: true,
+      showSubmitButtonSpinner: false,
     };
 
     this.toggleCodeMirror = this.toggleCodeMirror.bind(this);
@@ -147,7 +149,11 @@ export class SubmitForm extends React.Component {
 
     this.languageInfo[languageId] = (new Date()).getTime();
     localStorage.setItem('languageInfo', JSON.stringify(this.languageInfo));
-
+    if (!this.state.file && !this.state.source) {
+      alert('nothing to submit');
+      return;
+    }
+    this.setState({showSubmitButtonSpinner: true});
     this.props.dispatch(problemAcitons.submitProblem(
       this.props.problemId,
       _.pick(this.state, ['languageId', 'file', 'source']),
@@ -157,28 +163,35 @@ export class SubmitForm extends React.Component {
         ...this.state,
         showSubmitSuccess: true,
         showSubmitError: false,
+        showSubmitButtonSpinner: false,
       });
       setTimeout(() => this.setState({
         ...this.state,
-        showSubmitSuccess: false
+        showSubmitSuccess: false,
       }), 2000);
     }).catch(error => {
       this.setState({
         ...this.state,
         showSubmitError: true,
+        showSubmitButtonSpinner: false,
       });
       console.log(error);
     });
   }
 
   render() {
-    const loggedIn = !_.isEmpty(this.props.user);
+    const loggedIn = isUserLoggedIn(this.props.user);
 
     if (!loggedIn) {
       return (
         <SubmitFormWrapper>
           <div className="loginBtn">
-            <Link to="/login">
+            <Link 
+              to={{
+                pathname: '/auth/login',
+                state: { from: this.props.location.pathname }
+              }}
+            >
               <Button type="primary">Войдите в систему, чтобы сдать задачу</Button>
             </Link>
           </div>
@@ -282,6 +295,7 @@ export class SubmitForm extends React.Component {
           <Button
             type="primary"
             onClick={this.submitProblem}
+            loading={this.state.showSubmitButtonSpinner}
           >
             Сдать решение
           </Button>
@@ -300,7 +314,7 @@ export class SubmitForm extends React.Component {
   }
 }
 
-export default connect(state => ({
+export default withRouter(connect(state => ({
   user: state.user,
   windowWidth: state.ui.width,
-}))(SubmitForm);
+}))(SubmitForm));

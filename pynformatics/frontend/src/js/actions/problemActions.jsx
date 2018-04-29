@@ -52,7 +52,7 @@ export function submitProblem(problemId, { languageId, file, source }, statement
       formData.append('file', blob, `source${LANGUAGES[languageId].extension}`);
     }
     else {
-      alert('nothing to submit');
+      console.log('nothing to submit');
       return;
     }
 
@@ -73,7 +73,7 @@ export function submitProblem(problemId, { languageId, file, source }, statement
         },
       ),
       meta: { problemId },
-    }).then(() => dispatch(fetchProblemRuns(problemId, statementId)));
+    });
   };
 }
 
@@ -93,4 +93,22 @@ export function fetchProblemRunProtocol(problemId, contestId, runId) {
       meta: { problemId, runId },
     });
   };
+}
+
+
+export function fetchProblemStandings(problemId) {
+  return (dispatch) => {
+    const url = `/problem/${problemId}/standings`;
+
+    return dispatch({
+      type: 'GET_PROBLEM_STANDINGS',
+      payload: axios.get(
+        url,
+        {
+          withCredentials: true,
+        }
+      ),
+      meta: { problemId },
+    });
+  }
 }

@@ -1,20 +1,18 @@
-import { Link } from 'react-router-dom';
+import PropTypes from 'prop-types';
 import React from 'react';
 import ReactDOM from 'react-dom';
 import styled from 'styled-components';
-import { palette } from 'styled-theme';
-import PropTypes from 'prop-types';
+import { Link } from 'react-router-dom';
 import { Menu as AntdMenu } from 'antd';
+import { palette } from 'styled-theme';
 import * as _ from 'lodash';
-
-
-import { borderRadius, transition } from '../../isomorphic/config/style-util';
 
 import Button from '../../components/utility/Button';
 import MenuTime from './MenuTime';
-import { ToggleDrawerIcon } from '../../components/Icon';
-import { getProblemShortNameByNumber } from '../../utils/functions';
 import Status from '../../components/Runs/Status';
+import { ToggleDrawerIcon } from '../../components/Icon';
+import { borderRadius, transition } from '../../isomorphic/config/style-util';
+import { getProblemShortNameByNumber } from '../../utils/functions';
 
 
 const MenuWrapper = styled.div`
@@ -187,22 +185,31 @@ const MenuWrapper = styled.div`
 `;
 
 
-const MenuProblem = ({letter, rank, status, title, collapsed}) => (
+const MenuProblem = ({letter, rank, score, status, title, collapsed}) => (
   <div className="problemMenuItem">
     <div className="problemSelected" />
     <div className="problemLetter">{letter}</div>
     <div className="problemTitle">{title}</div>
     <div className="problemStatus">
-      {/*<Status status={status} collapsed={collapsed}/>*/}
+      {
+        typeof status !== 'undefined'
+        ? <Status score={score} status={status} collapsed={collapsed}/>
+        : null
+      }
     </div>
   </div>
 );
 
 
 export class Menu extends React.Component {
+  static contextTypes = {
+    statementId: PropTypes.number,
+  };
+
   static propTypes = {
     collapsed: PropTypes.bool.isRequired,
     statement: PropTypes.object.isRequired,
+    user: PropTypes.object.isRequired,
     onCollapse: PropTypes.func,
     onSelect: PropTypes.func,
   };
@@ -227,6 +234,9 @@ export class Menu extends React.Component {
       ...this.state,
       headerHeight,
     });
+    if (window.innerWidth < 1280) {
+      this.props.onCollapse();
+    }
   }
 
 
@@ -237,10 +247,12 @@ export class Menu extends React.Component {
   }
 
   render() {
+    const { statementId } = this.context;
     const {
       collapsed,
       selectedKeys,
       statement,
+      user,
       onCollapse,
       onSelect,
     } = this.props;
@@ -252,17 +264,23 @@ export class Menu extends React.Component {
       participant,
       olympiad,
       virtual_olympiad: virtualOlympiad,
+      course: bootcamp,
     } = statement;
+    const { full_name: bootcampTitle } = bootcamp;
 
-    const problemItems = _.map(problems, (value, key) => {
-      const { name: title } = value;
+    const userId = _.get(user, 'id')
+    const userResults = _.get(statement, `processed[${userId}].processed.problems`, {});
+
+    const problemItems = _.map(problems, ({ id, name: title }, key) => {
+      const { score, status } = userResults[id] || {};
       return (
         <AntdMenu.Item key={key}>
           <MenuProblem
             letter={getProblemShortNameByNumber(parseInt(key))}
             rank={key}
             title={title}
-            status={0}
+            score={score}
+            status={status}
             collapsed={collapsed || !hovered}
           />
         </AntdMenu.Item>
@@ -281,9 +299,9 @@ export class Menu extends React.Component {
         >
           <div className="title">
             <div className="toggleDrawer" onClick={onCollapse}><ToggleDrawerIcon /></div>
-            <div className="bootcampTitle">Название сборов</div>
+            <div className="bootcampTitle">{bootcampTitle}</div>
             <div className="statementTitle">{statementTitle}</div>
-            <Link to='/'><Button type="secondary" size="small">Результаты контеста</Button></Link>
+            <Link to={`/contest/${statementId}/standings`}><Button type="secondary" size="small">Результаты контеста</Button></Link>
           </div>
 
           { (olympiad || virtualOlympiad) && typeof participant !== 'undefined'
@@ -296,7 +314,8 @@ export class Menu extends React.Component {
             : null }
 
           <div className="info">
-            Количество элементов во всех структурах данных не превышает 10000, если это не указано особо.
+            Данные вводятся с&nbsp;клавиатуры или из&nbsp;файла input.txt, выводятся на экран или в&nbsp;файл output.txt. 
+            Первые тесты не&nbsp;всегда совпадают с&nbsp;примерами из&nbsp;условия.
           </div>
         </div>
         <div className="problems">

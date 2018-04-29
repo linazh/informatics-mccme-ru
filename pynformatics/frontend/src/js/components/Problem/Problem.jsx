@@ -1,18 +1,21 @@
-import { connect } from 'react-redux';
 import PropTypes from 'prop-types';
 import React from 'react';
+import ReactDOM from 'react-dom';
 import styled from 'styled-components';
-import * as _ from 'lodash';
+import { connect } from 'react-redux';
 import { palette } from 'styled-theme';
+import * as _ from 'lodash';
 
 import Box from '../../components/utility/Box';
+import GroupFilter from '../../components/GroupFilter/GroupFilter';
 import Header from '../../components/utility/Header';
 import Runs from '../Runs/Runs';
 import Sample from './Sample';
+import StandingsPane from './StandingsPane';
+import SubmissionsPane from './SubmissionsPane';
 import SubmitForm from './SubmitForm';
 import Tabs, { TabPane } from '../../components/utility/Tabs';
 import * as problemActions from '../../actions/problemActions';
-import SubmissionsPane from './SubmissionsPane';
 
 
 const ProblemWrapper = styled.div`
@@ -34,6 +37,21 @@ const ProblemWrapper = styled.div`
       display: none;
     }
     span { margin: auto; }
+  }
+
+  .problemLimits {
+    display: flex;
+    flex-flow: row wrap;
+    justify-content: space-around;
+    padding: 10px;
+
+    background: #f8f8f8;
+    color: ${palette('other', 13)};
+    border-radius: 4px;
+
+    @media (max-width: 575px) {
+      flex-flow: column nowrap;
+    }
   }
     
   .problemStatement {
@@ -95,6 +113,7 @@ export class Problem extends React.Component {
 
   static propTypes = {
     problemId: PropTypes.number.isRequired,
+    onTabChange: PropTypes.func,
   };
 
   constructor(props, context) {
@@ -130,6 +149,9 @@ export class Problem extends React.Component {
       name: problemTitle,
       content: problemStatement,
       sample_tests_json: problemSamples,
+      timelimit: problemTimeLimit,
+      memorylimit: problemMemoryLimit,
+      show_limits: problemShowLimits,
     } = _.get(this.props.problems, `[${problemId}].data`, {});
     const problemRuns = _.get(this.props.problems[problemId], 'runs', {});
     const userProblemRuns = _.pickBy(problemRuns, (value) => typeof value.user === 'undefined');
@@ -148,10 +170,24 @@ export class Problem extends React.Component {
           <Tabs
             defaultActiveKey="statement"
             style={{ textAlign: 'center' }}
+            onChange={this.props.onTabChange}
             {...additionalTabsProps}
           >
             <TabPane className="tabStatement" tab="Условие" key="statement">
-              <div className="problemStatement" dangerouslySetInnerHTML={{ __html: problemStatement }} />
+              {
+                problemShowLimits
+                ? (
+                  <div className="problemLimits">
+                    <div>Ограничение по времени, сек: {problemTimeLimit}</div>
+                    <div>Ограничение по памяти, мегабайт: {problemMemoryLimit / 1024 / 1024}</div>
+                  </div>
+                ) : null
+              }
+              <div 
+                className="problemStatement" 
+                dangerouslySetInnerHTML={{ __html: problemStatement }} 
+                ref={(node) => window.MathJax.Hub.Queue(['Typeset', window.MathJax.Hub, node])}
+              />
               <Header style={{ marginBottom: 30 }}>Примеры</Header>
               <div className="problemSamples">
                 { _.map(problemSamples, ({input, correct}, id) => <Sample key={id} input={input} correct={correct}/>) }
@@ -159,12 +195,14 @@ export class Problem extends React.Component {
               <SubmitForm problemId={problemId} />
               <Runs problemId={problemId} runs={userProblemRuns} />
             </TabPane>
-            <TabPane tab="Результаты" key="standings" />
+            <TabPane tab="Результаты" key="standings">
+              <StandingsPane problemId={problemId} />
+            </TabPane>
             <TabPane tab="Посылки" key="runs">
               <SubmissionsPane problemId={problemId} runs={problemRuns} />
             </TabPane>
-            <TabPane tab="Решение" key="solution" />
-            <TabPane tab="Темы и источники" key="sources" />
+            <TabPane tab="Решение" key="solution" disabled />
+            <TabPane tab="Темы и источники" key="sources" disabled />
           </Tabs>
         </Box>
       </ProblemWrapper>

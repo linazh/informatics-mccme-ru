@@ -1,15 +1,30 @@
+import logging
+from gevent import monkey
+from logging.config import fileConfig
 from pyramid.config import Configurator
 from pyramid_beaker import session_factory_from_settings
 from sqlalchemy import engine_from_config
 
-from .models import DBSession
+from pynformatics.models import DBSession
 from pynformatics.view.comment import *
 from pynformatics.utils.oauth import fill_oauth_config_secrets
+from pynformatics.utils.url_encoder import init_url_encoder
+from pynformatics.utils.redis import init_redis
+
+
+log = logging.getLogger(__name__)
+monkey.patch_all()
+
+
+SCAN_IGNORE = ['pynformatics.tests', 'pynformatics.testutils']
 
 
 def main(global_config, **settings):
     """ This function returns a Pyramid WSGI application.
     """
+    if 'logging.config' in settings:
+        fileConfig(settings['logging.config'], disable_existing_loggers=False)
+
     if global_config.get('TEST'):
         engine = global_config.get('engine')
     else:
@@ -78,6 +93,7 @@ def main(global_config, **settings):
     config.add_route('problem.limits.show', '/problem/{problem_id}/limits/show')
     config.add_route('problem.limits.hide', '/problem/{problem_id}/limits/hide')
     config.add_route('problem.runs', '/problem/{problem_id}/runs')
+    # config.add_route('problem.standings', '/problem/{problem_id}/standings')
     config.add_route('problem.submit', '/problem/{problem_id}/submit')
     config.add_route('problem.submit_v2', '/problem/{problem_id}/submit_v2')
     config.add_route('problem.tests.add', '/problem/{problem_id}/tests/add')
@@ -115,13 +131,14 @@ def main(global_config, **settings):
     config.add_route('recommendation.get', '/recommendation/get')
     config.add_route('recommendation.get_html', '/recommendation/get_html')
 
-    config.add_route('submits.get', '/submits/get')
+    config.add_route('submit.get', '/submit')
 
     config.add_route('statement.get_by_course_module', '/statement')
     config.add_route('statement.get', '/statement/{statement_id}')
     config.add_route('statement.set_settings', '/statement/{statement_id}/set_settings')
     config.add_route('statement.start_virtual', '/statement/{statement_id}/start_virtual')
     config.add_route('statement.finish_virtual', '/statement/{statement_id}/finish_virtual')
+    config.add_route('statement.standings', '/statement/{statement_id}/standings')
     config.add_route('statement.start', '/statement/{statement_id}/start')
     config.add_route('statement.finish', '/statement/{statement_id}/finish')
 
@@ -131,9 +148,27 @@ def main(global_config, **settings):
     config.add_route('auth.logout', 'auth/logout')
     config.add_route('auth.oauth_login', 'auth/oauth_login')
 
-    config.scan(ignore='pynformatics.tests')
+    config.add_route('notification.update_run', 'notification/update_run')
+
+    config.add_route('group.get', 'group/{group_id}')
+    config.add_route('group.search', 'group')
+    config.add_route('group.join_by_invite', 'group/join/{group_invite_url}')
+
+    config.add_route('group_invite.get', 'group_invite')
+
+    try:
+        import uwsgi
+        config.add_route('websocket', 'websocket')
+    except ImportError:
+        log.error('UWSGI is not imported. Websockets will not work!')
+        SCAN_IGNORE.append('pynformatics.view.websocket')
+
 
     fill_oauth_config_secrets(settings)
+    init_url_encoder(settings)
+    init_redis(settings)
+
+    config.scan(ignore=SCAN_IGNORE)
 
     return config.make_wsgi_app()
 

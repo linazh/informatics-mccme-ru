@@ -13,6 +13,7 @@ export default function reducer(state=initialState, action) {
       return {
         ...state,
         [statementId]: {
+          ...state[statementId],
           ...action.payload.data,
           fetched: true,
         },
@@ -44,8 +45,29 @@ export default function reducer(state=initialState, action) {
           fetched: true,
         }
       };
+    
+    case 'GET_STATEMENT_STANDINGS_PENDING':
+      return state;
+    
+    case 'GET_STATEMENT_STANDINGS_FULFILLED':
+      return {
+        ...state,
+        [statementId]: {
+          ...state[statementId],
+          standings: action.payload.data,
+        }
+      }
 
     default:
       return state;
+
+    case 'STATEMENT_PROCESS_STANDINGS':
+      return {
+        ...state,
+        [statementId]: {
+          ...state[statementId],
+          processed: action.payload,
+        }
+      }
   }
 }

@@ -7,10 +7,27 @@ const initialState = {
 };
 
 export default function reducer(state=initialState, action) {
-  if (!action.meta)
-    return state;
-  const {problemId, runId} = action.meta;
+  const {problemId, runId} = action.meta || {};
+
   switch (action.type) {
+    case 'WEBSOCKET_MESSAGE':
+      const { ejudge_error } = action.data;
+      if (typeof ejudge_error !== 'undefined') {
+        const { code, message } = ejudge_error;
+        alert(code + ' ' + message);
+      }
+
+      const { runs } = action.data;
+      const runsForMerge = _.chain(runs)
+        .groupBy(run => run.problem_id)
+        .mapValues(
+          problemRuns => (
+            { runs: _.keyBy(problemRuns, run => run.run_id) }
+          )
+        )
+        .value();
+      return _.merge({}, state, runsForMerge);
+
     case 'GET_PROBLEM_PENDING':
       return {
         ...state,
@@ -38,13 +55,6 @@ export default function reducer(state=initialState, action) {
           fetched: false,
         }
       };
-
-    case 'PROBLEM_SUBMIT_PENDING':
-      return state;
-    case 'PROBLEM_SUBMIT_FULFILLED':
-      return state;
-    case 'PROBLEM_SUBMIT_REJECTED':
-      return state;
 
     case 'GET_PROBLEM_RUNS_PENDING':
       return {
@@ -99,6 +109,15 @@ export default function reducer(state=initialState, action) {
       };
     case 'GET_PROBLEM_RUN_PROTOCOL_REJECTED':
       return state;
+    
+    case 'GET_PROBLEM_STANDINGS_FULFILLED':
+      return {
+        ...state,
+        [problemId]: {
+          ...state[problemId],
+          standings: actions.payload.data,
+        }
+      };
   }
   return state;
 }

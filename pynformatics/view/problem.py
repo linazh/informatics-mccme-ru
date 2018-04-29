@@ -9,19 +9,22 @@ from sqlalchemy import and_
 
 from pynformatics.contest.ejudge.ejudge_proxy import submit
 from pynformatics.contest.ejudge.serve_internal import EjudgeContestCfg
+from pynformatics.contest.ejudge.submit_queue import queue_submit
 from pynformatics.model.user import SimpleUser
 from pynformatics.model.problem import (
     EjudgeProblem,
     Problem,
 )
 from pynformatics.model.pynformatics_run import PynformaticsRun
-from pynformatics.model.run import Run
+from pynformatics.model.ejudge_run import EjudgeRun
+from pynformatics.model.standings import ProblemStandings
 from pynformatics.models import DBSession
 from pynformatics.view.utils import *
 from pynformatics.utils.context import with_context
 from pynformatics.utils.exceptions import (
     EjudgeError,
     Forbidden,
+    ProblemNotFound,
 )
 from pynformatics.utils.validators import (
     validate_matchdict,
@@ -57,7 +60,7 @@ def problem_show_limits(request):
         return {"result" : "error", "message" : e.__str__(), "stack" : traceback.format_exc()}
 
 
-@view_config(route_name='problem.submit', renderer='json')
+@view_config(route_name='problem.submit', renderer='json', request_method='POST')
 @with_context(require_auth=True)
 def problem_submits(request, context):
     lang_id = request.params['lang_id']
@@ -87,40 +90,21 @@ def problem_submits(request, context):
 )
 @with_context(require_auth=True)
 def problem_submits_v2(request, context):
-    lang_id = int(request.params['lang_id'])
+    language_id = int(request.params['lang_id'])
     file = request.params['file']
-    filename = request.params['file'].filename
     ejudge_url = request.registry.settings['ejudge.new_client_url']
 
-    if lang_id not in context.get_allowed_languages():
-        raise Forbidden('Language id "%s" is not allowed' % lang_id)
+    if language_id not in context.get_allowed_languages():
+        raise Forbidden(f'Language id "{language_id}" is not allowed')
 
-    ejudge_response = submit(
-        run_file=file.file,
-        contest_id=context.problem.ejudge_contest_id,
-        prob_id=context.problem.problem_id,
-        lang_id=lang_id,
-        login=context.user.login,
-        password=context.user.password,
-        filename=filename,
-        url=ejudge_url,
-        user_id=context.user_id,
+    queue_submit(
+        context=context,
+        file=file,
+        language_id=language_id,
+        ejudge_url=ejudge_url
     )
-    if ejudge_response['code'] != 0:
-        raise EjudgeError(ejudge_response['message'])
 
-    run_id = ejudge_response['run_id']
-    run = PynformaticsRun(
-        run_id=run_id,
-        contest_id=context.problem.ejudge_contest_id,
-        statement_id=getattr(context.statement, 'id', None),
-        source=file.value.decode('unicode_escape'),
-    )
-    DBSession.add(run)
-    DBSession.flush()
-
-    return run.run.serialize(context)
-
+    return {}
 
 @view_config(route_name='problem.ant.submit', renderer='json')
 def problem_ant_submits(request):
@@ -305,14 +289,14 @@ def problem_get(request, context):
 @validate_params(IntParam('statement_id'))
 @with_context
 def problem_runs(request, context):
-    runs = context.problem.runs
+    runs = context.problem.ejudge_runs
     if 'statement_id' in request.params:
         statement_id = int(request.params['statement_id'])
         runs = runs.join(
             PynformaticsRun,
             and_(
-                PynformaticsRun.run_id == Run.run_id,
-                PynformaticsRun.contest_id == Run.contest_id
+                PynformaticsRun.run_id == EjudgeRun.run_id,
+                PynformaticsRun.contest_id == EjudgeRun.contest_id
             )
         ).filter(
             PynformaticsRun.statement_id == statement_id
@@ -324,6 +308,23 @@ def problem_runs(request, context):
 
     runs_dict = {
         run.run_id: run.serialize(context)
-        for run in runs
+        for run in runs.all()
     }
     return runs_dict
+
+
+# @view_config(route_name='problem.standings', renderer='json', request_method='GET')
+# @validate_matchdict(IntParam('problem_id', required=True))
+# @with_context
+# def problem_standings(request, context):
+#     if not context.problem:
+#         raise ProblemNotFound
+#
+#     problem = context.problem
+#
+#     if problem.standings is None:
+#         standings = ProblemStandings.create(problem_id=problem.id)
+#     else:
+#         standings = problem.standings
+#
+#     return standings.serialize(context)

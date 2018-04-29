@@ -3,6 +3,16 @@ const webpack = require('webpack');
 const path = require('path');
 
 
+const API_URLS = {
+  'debug': {
+    'websocket': JSON.stringify('ws://localhost:8080/websocket'),
+  },
+  'production': {
+    'websocket': JSON.stringify('wss://rmatics.info/api_v2/websocket'),
+  }
+}
+
+
 module.exports = {
   context: path.join(__dirname, 'src'),
   devtool: debug ? 'inline-sourcemap' : false,
@@ -31,7 +41,7 @@ module.exports = {
         use: ['style-loader', 'css-loader'],
       },
       {
-        test: /\.(jpe?g|png|gif)$/,
+        test: /\.(jpe?g|png|gif|eot|ttf|woff)$/,
         loaders: [
           'file-loader?hash=sha512&digest=hex&name=[hash].[ext]',
           {
@@ -66,9 +76,13 @@ module.exports = {
   },
   plugins: debug ? [
     new webpack.optimize.OccurrenceOrderPlugin(),
+    new webpack.DefinePlugin({
+      '__websocket__': API_URLS['debug']['websocket'],
+    })
   ] : [
     new webpack.DefinePlugin({
-      'process.env.NODE_ENV': JSON.stringify('production')
+      'process.env.NODE_ENV': JSON.stringify('production'),
+      '__websocket__': API_URLS['production']['websocket'],
     }),
     new webpack.optimize.OccurrenceOrderPlugin(),
     new webpack.optimize.UglifyJsPlugin({
@@ -103,6 +117,11 @@ module.exports = {
       '/api_v2': {
         target: 'http://informatics.msk.ru:6349',
         pathRewrite: {'^/api_v2': ''},
+      },
+      '/websocket': {
+        target: 'ws://informatics.msk.ru:6349/websocket',
+        pathRewrite: {'.*': ''},
+        ws: true,
       }
     },
   }
